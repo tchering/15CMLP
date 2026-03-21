@@ -61,7 +61,7 @@ private struct HomeHeaderCard: View {
                         .font(.system(size: 32, weight: .heavy, design: .rounded))
                         .foregroundStyle(.white)
 
-                    Text("15CMLP Company Directory")
+                    Text("15CMLP")
                         .font(.headline)
                         .foregroundStyle(.white.opacity(0.88))
 
