@@ -61,6 +61,10 @@ final class CompanyDirectoryStore {
         deleteMembers(withIDs: memberIDs, from: sectionID)
     }
 
+    func deleteMember(memberID: UUID, from sectionID: UUID) {
+        deleteMembers(withIDs: [memberID], from: sectionID)
+    }
+
     private func deleteMembers(withIDs memberIDs: [UUID], from sectionID: UUID) {
         guard let sectionIndex = sections.firstIndex(where: { $0.id == sectionID }) else {
             return
