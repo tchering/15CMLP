@@ -22,6 +22,8 @@ struct SectionDetailView: View {
                     LazyVStack(alignment: .leading, spacing: 18) {
                         ForEach(section.membersByRank) { rankGroup in
                             RankStackCard(
+                                store: store,
+                                sectionID: sectionID,
                                 rankGroup: rankGroup,
                                 sectionName: section.name,
                                 isExpanded: expandedRanks.contains(rankGroup.rank),
@@ -69,6 +71,8 @@ struct SectionDetailView: View {
 }
 
 private struct RankStackCard: View {
+    let store: CompanyDirectoryStore
+    let sectionID: UUID
     let rankGroup: RankGroup
     let sectionName: String
     let isExpanded: Bool
@@ -112,7 +116,11 @@ private struct RankStackCard: View {
                 VStack(spacing: 12) {
                     ForEach(rankGroup.members) { member in
                         NavigationLink {
-                            MemberDetailView(member: member, sectionName: sectionName)
+                            MemberDetailView(
+                                store: store,
+                                sectionID: sectionID,
+                                memberID: member.id
+                            )
                         } label: {
                             MemberRow(member: member)
                         }

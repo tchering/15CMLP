@@ -23,6 +23,10 @@ final class CompanyDirectoryStore {
         sections.first { $0.id == sectionID }
     }
 
+    func member(withID memberID: UUID, in sectionID: UUID) -> Member? {
+        section(withID: sectionID)?.members.first { $0.id == memberID }
+    }
+
     func addMember(
         to sectionID: UUID,
         name: String,
@@ -63,6 +67,51 @@ final class CompanyDirectoryStore {
 
     func deleteMember(memberID: UUID, from sectionID: UUID) {
         deleteMembers(withIDs: [memberID], from: sectionID)
+    }
+
+    func updateMember(
+        in sectionID: UUID,
+        memberID: UUID,
+        name: String,
+        rank: Rank,
+        role: String,
+        memoryTip: String,
+        bundledImageName: String?,
+        importedPhotoData: Data?,
+        removePhoto: Bool
+    ) throws {
+        guard let sectionIndex = sections.firstIndex(where: { $0.id == sectionID }),
+              let memberIndex = sections[sectionIndex].members.firstIndex(where: { $0.id == memberID }) else {
+            return
+        }
+
+        let existingMember = sections[sectionIndex].members[memberIndex]
+        var storedPhotoFileName = existingMember.storedPhotoFileName
+
+        if let importedPhotoData {
+            if existingMember.storedPhotoFileName != nil {
+                persistence.deletePhoto(for: existingMember)
+            }
+            storedPhotoFileName = try persistence.savePhoto(data: importedPhotoData)
+        } else if removePhoto {
+            if existingMember.storedPhotoFileName != nil {
+                persistence.deletePhoto(for: existingMember)
+            }
+            storedPhotoFileName = nil
+        }
+
+        let updatedMember = Member(
+            id: existingMember.id,
+            name: name,
+            rank: rank,
+            role: role,
+            memoryTip: memoryTip,
+            bundledImageName: bundledImageName,
+            storedPhotoFileName: storedPhotoFileName
+        )
+
+        sections[sectionIndex].members[memberIndex] = updatedMember
+        try persistence.saveSections(sections)
     }
 
     private func deleteMembers(withIDs memberIDs: [UUID], from sectionID: UUID) {
