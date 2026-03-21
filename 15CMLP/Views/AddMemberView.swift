@@ -17,6 +17,7 @@ struct AddMemberView: View {
 
     @State private var name = ""
     @State private var selectedRank: Rank = .soldier
+    @State private var phoneNumber = ""
     @State private var role = ""
     @State private var memoryTip = ""
     @State private var bundledImageName = ""
@@ -37,6 +38,9 @@ struct AddMemberView: View {
                             Text(rank.title).tag(rank)
                         }
                     }
+
+                    TextField("Phone Number (Optional)", text: $phoneNumber)
+                        .keyboardType(.phonePad)
 
                     TextField("Role", text: $role)
                 }
@@ -137,6 +141,7 @@ struct AddMemberView: View {
                 to: sectionID,
                 name: name.trimmingCharacters(in: .whitespacesAndNewlines),
                 rank: selectedRank,
+                phoneNumber: phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines),
                 role: role.trimmingCharacters(in: .whitespacesAndNewlines),
                 memoryTip: memoryTip.trimmingCharacters(in: .whitespacesAndNewlines),
                 bundledImageName: normalizedBundledImageName,

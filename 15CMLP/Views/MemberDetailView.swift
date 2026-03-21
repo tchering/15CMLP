@@ -48,6 +48,7 @@ struct MemberDetailView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             DetailRow(title: "Section", value: section.name)
                             DetailRow(title: "Grade", value: member.rank.title)
+                            DetailRow(title: "Phone", value: member.phoneNumber)
                             DetailRow(title: "Role", value: member.role)
                             DetailRow(title: "Memory Tip", value: member.memoryTip)
                         }
@@ -96,6 +97,7 @@ private struct EditMemberView: View {
 
     @State private var name: String
     @State private var selectedRank: Rank
+    @State private var phoneNumber: String
     @State private var role: String
     @State private var memoryTip: String
     @State private var bundledImageName: String
@@ -112,6 +114,7 @@ private struct EditMemberView: View {
         self.member = member
         _name = State(initialValue: member.name)
         _selectedRank = State(initialValue: member.rank)
+        _phoneNumber = State(initialValue: member.phoneNumber)
         _role = State(initialValue: member.role)
         _memoryTip = State(initialValue: member.memoryTip)
         _bundledImageName = State(initialValue: member.bundledImageName ?? "")
@@ -128,6 +131,9 @@ private struct EditMemberView: View {
                             Text(rank.title).tag(rank)
                         }
                     }
+
+                    TextField("Phone Number (Optional)", text: $phoneNumber)
+                        .keyboardType(.phonePad)
 
                     TextField("Role", text: $role)
                 }
@@ -216,6 +222,7 @@ private struct EditMemberView: View {
             id: member.id,
             name: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? member.name : name,
             rank: selectedRank,
+            phoneNumber: phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines),
             role: role,
             memoryTip: memoryTip,
             bundledImageName: normalizedBundledImageName ?? member.bundledImageName,
@@ -258,6 +265,7 @@ private struct EditMemberView: View {
                 memberID: member.id,
                 name: name.trimmingCharacters(in: .whitespacesAndNewlines),
                 rank: selectedRank,
+                phoneNumber: phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines),
                 role: role.trimmingCharacters(in: .whitespacesAndNewlines),
                 memoryTip: memoryTip.trimmingCharacters(in: .whitespacesAndNewlines),
                 bundledImageName: normalizedBundledImageName,
