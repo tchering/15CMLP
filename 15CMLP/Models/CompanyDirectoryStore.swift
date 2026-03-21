@@ -7,6 +7,8 @@
 
 import Foundation
 import Observation
+import SwiftUI
+import UniformTypeIdentifiers
 import UIKit
 
 @Observable
@@ -17,6 +19,14 @@ final class CompanyDirectoryStore {
 
     init() {
         sections = persistence.loadSections()
+    }
+
+    func makeBackupDocument() throws -> CompanyBackupDocument {
+        CompanyBackupDocument(data: try persistence.exportBackup(sections: sections))
+    }
+
+    func importBackup(from data: Data) throws {
+        sections = try persistence.importBackup(from: data)
     }
 
     func section(withID sectionID: UUID) -> CompanySection? {
@@ -169,8 +179,37 @@ struct MemberPhotoStorage {
     }
 }
 
+struct CompanyDirectoryBackup: Codable {
+    let version: Int
+    let exportedAt: Date
+    let sections: [CompanySection]
+    let photos: [String: Data]
+}
+
+struct CompanyBackupDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+
+    let data: Data
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        guard let data = configuration.file.regularFileContents else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        self.data = data
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
+
 private struct CompanyDirectoryPersistence {
     private let sectionsFileName = "company-sections.json"
+    private let backupVersion = 1
 
     func loadSections() -> [CompanySection] {
         let url = sectionsFileURL()
@@ -191,6 +230,45 @@ private struct CompanyDirectoryPersistence {
         try data.write(to: sectionsFileURL(), options: [.atomic])
     }
 
+    func exportBackup(sections: [CompanySection]) throws -> Data {
+        let photoFileNames = Set(
+            sections
+                .flatMap(\.members)
+                .compactMap(\.storedPhotoFileName)
+        )
+
+        var photos: [String: Data] = [:]
+        for fileName in photoFileNames {
+            let fileURL = MemberPhotoStorage.fileURL(for: fileName)
+            if let data = try? Data(contentsOf: fileURL) {
+                photos[fileName] = data
+            }
+        }
+
+        let backup = CompanyDirectoryBackup(
+            version: backupVersion,
+            exportedAt: Date(),
+            sections: sections,
+            photos: photos
+        )
+
+        return try JSONEncoder.prettyEncoder.encode(backup)
+    }
+
+    func importBackup(from data: Data) throws -> [CompanySection] {
+        let decoder = JSONDecoder()
+
+        if let backup = try? decoder.decode(CompanyDirectoryBackup.self, from: data) {
+            replacePhotos(with: backup.photos)
+            try saveSections(backup.sections)
+            return backup.sections
+        }
+
+        let sections = try decoder.decode([CompanySection].self, from: data)
+        try saveSections(sections)
+        return sections
+    }
+
     func savePhoto(data: Data) throws -> String {
         let fileName = "\(UUID().uuidString).jpg"
         let fileURL = MemberPhotoStorage.fileURL(for: fileName)
@@ -205,6 +283,23 @@ private struct CompanyDirectoryPersistence {
         }
 
         try? FileManager.default.removeItem(at: MemberPhotoStorage.fileURL(for: storedPhotoFileName))
+    }
+
+    private func replacePhotos(with photos: [String: Data]) {
+        let photosURL = MemberPhotoStorage.photosDirectoryURL()
+
+        if let existingFiles = try? FileManager.default.contentsOfDirectory(
+            at: photosURL,
+            includingPropertiesForKeys: nil
+        ) {
+            for fileURL in existingFiles {
+                try? FileManager.default.removeItem(at: fileURL)
+            }
+        }
+
+        for (fileName, data) in photos {
+            try? data.write(to: MemberPhotoStorage.fileURL(for: fileName), options: [.atomic])
+        }
     }
 
     private func normalizedPhotoData(from data: Data) -> Data {
