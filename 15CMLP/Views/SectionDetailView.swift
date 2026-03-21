@@ -72,6 +72,7 @@ private struct MemberRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(member.name)
                     .font(.headline)
+                    .foregroundStyle(Color.primary)
 
                 Text(member.role)
                     .font(.subheadline)
@@ -84,15 +85,21 @@ private struct MemberRow: View {
                 .font(.caption.weight(.bold))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Color.blue.opacity(0.14))
+                .foregroundStyle(Color(red: 0.14, green: 0.28, blue: 0.48))
+                .background(Color.blue.opacity(0.10))
                 .clipShape(Capsule())
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 8)
-        .listRowBackground(
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(0.92))
+                .fill(Color.white.opacity(0.94))
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.blue.opacity(0.10), lineWidth: 1)
+        )
+        .listRowBackground(Color.clear)
     }
 }
 
