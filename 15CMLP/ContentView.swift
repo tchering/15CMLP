@@ -37,7 +37,7 @@ struct ContentView: View {
                 .padding(.vertical, 24)
             }
             .background(HomeBackground().ignoresSafeArea())
-            .navigationTitle("15CMLP")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
         }
     }

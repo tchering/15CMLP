@@ -76,11 +76,14 @@ struct AddMemberView: View {
             }
             .navigationTitle("Add Member")
             .navigationBarTitleDisplayMode(.inline)
+            .scrollContentBackground(.hidden)
+            .background(AccentBackground().ignoresSafeArea())
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
                     }
+                    .tint(.white)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
@@ -90,6 +93,7 @@ struct AddMemberView: View {
                         }
                     }
                     .disabled(isSaveDisabled)
+                    .tint(.white)
                 }
             }
         }

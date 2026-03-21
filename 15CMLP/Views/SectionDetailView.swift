@@ -40,6 +40,8 @@ struct SectionDetailView: View {
                 .navigationTitle(section.name)
                 .navigationBarTitleDisplayMode(.inline)
                 .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
+                .background(AccentBackground().ignoresSafeArea())
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
@@ -47,6 +49,7 @@ struct SectionDetailView: View {
                         } label: {
                             Label("Add Member", systemImage: "plus")
                         }
+                        .tint(.white)
                     }
                 }
                 .sheet(isPresented: $isShowingAddMember) {
@@ -81,9 +84,42 @@ private struct MemberRow: View {
                 .font(.caption.weight(.bold))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Color.blue.opacity(0.12))
+                .background(Color.blue.opacity(0.14))
                 .clipShape(Capsule())
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 8)
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white.opacity(0.92))
+        )
+    }
+}
+
+struct AccentBackground: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.05, green: 0.08, blue: 0.15),
+                    Color(red: 0.08, green: 0.14, blue: 0.24),
+                    Color(red: 0.12, green: 0.20, blue: 0.34)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            Circle()
+                .fill(Color.cyan.opacity(0.13))
+                .frame(width: 260, height: 260)
+                .blur(radius: 32)
+                .offset(x: -120, y: -260)
+
+            Circle()
+                .fill(Color.blue.opacity(0.12))
+                .frame(width: 300, height: 300)
+                .blur(radius: 42)
+                .offset(x: 150, y: -80)
+        }
     }
 }

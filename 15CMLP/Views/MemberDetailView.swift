@@ -16,19 +16,24 @@ struct MemberDetailView: View {
         ScrollView {
             VStack(spacing: 20) {
                 MemberAvatar(member: member, size: 150)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 36, style: .continuous)
+                            .stroke(.white.opacity(0.18), lineWidth: 1)
+                    }
 
                 VStack(spacing: 8) {
                     Text(member.name)
                         .font(.title.bold())
+                        .foregroundStyle(.white)
 
                     Text(member.rank.title)
                         .font(.headline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.72))
 
                     if !member.role.isEmpty {
                         Text(member.role)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(.cyan)
                     }
                 }
 
@@ -39,12 +44,17 @@ struct MemberDetailView: View {
                     DetailRow(title: "Memory Tip", value: member.memoryTip)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
-                .background(Color(.secondarySystemGroupedBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .padding(18)
+                .background(Color.white.opacity(0.10))
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(.white.opacity(0.10), lineWidth: 1)
+                }
             }
-            .padding()
+            .padding(20)
         }
+        .background(AccentBackground().ignoresSafeArea())
         .navigationTitle(member.name)
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -58,10 +68,11 @@ private struct DetailRow: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.58))
 
             Text(value.isEmpty ? "None" : value)
                 .font(.body)
+                .foregroundStyle(.white)
         }
     }
 }
