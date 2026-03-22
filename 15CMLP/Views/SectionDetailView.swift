@@ -23,7 +23,7 @@ struct SectionDetailView: View {
         Group {
             if let section = store.section(withID: sectionID) {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 18) {
                         ForEach(section.membersByRank) { rankGroup in
                             RankStackCard(
                                 store: store,
@@ -79,10 +79,12 @@ struct SectionDetailView: View {
     }
 
     private func toggle(rank: Rank) {
-        if expandedRanks.contains(rank) {
-            expandedRanks.remove(rank)
-        } else {
-            expandedRanks.insert(rank)
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+            if expandedRanks.contains(rank) {
+                expandedRanks.remove(rank)
+            } else {
+                expandedRanks.insert(rank)
+            }
         }
     }
 }
@@ -333,12 +335,17 @@ private struct RankStackCard: View {
                         }
                     }
                 }
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.98, anchor: .top)),
+                        removal: .opacity
+                    )
+                )
             }
         }
         .padding(18)
         .sectionCardSurface(cornerRadius: 26)
-        .animation(.easeInOut(duration: 0.2), value: isExpanded)
+        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: isExpanded)
     }
 }
 

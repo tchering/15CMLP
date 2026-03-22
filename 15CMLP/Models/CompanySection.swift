@@ -48,10 +48,15 @@ struct CompanySection: Identifiable, Codable, Equatable {
                 Member(name: "Adjudant Laurent", rank: .chefDeSection, role: "Chef de section", memoryTip: "Replace sample data with your real section lead."),
                 Member(name: "Sergent-chef Michel", rank: .soa, role: "SOA", memoryTip: "Use photos in Assets for faster recognition."),
                 Member(name: "Sergent Garnier", rank: .sergent, role: "Group leader", memoryTip: "Add a short memory cue here."),
+                Member(name: "Sergent Roche", rank: .sergent, role: "Team lead", memoryTip: "Extra sample member for stack testing in Simulator."),
+                Member(name: "Sergent Vidal", rank: .sergent, role: "Driver lead", memoryTip: "Use this group to verify smooth expansion."),
+                Member(name: "Sergent Maret", rank: .sergent, role: "Support lead", memoryTip: "You can remove these sample members after testing."),
                 Member(name: "Caporal-chef Robin", rank: .caporalChef, role: "Senior specialist", memoryTip: "Hair, glasses, accent, or another visible cue."),
+                Member(name: "Caporal-chef Denis", rank: .caporalChef, role: "Maintenance specialist", memoryTip: "Additional row for animation testing."),
                 Member(name: "CC1 Henry", rank: .cc1, role: "CC1", memoryTip: "Change this member to the real person."),
                 Member(name: "Caporal Noel", rank: .caporal, role: "Caporal", memoryTip: "Record a memorable detail."),
-                Member(name: "Soldat Caron", rank: .soldier, role: "Soldier", memoryTip: "This note can help with revision.")
+                Member(name: "Soldat Caron", rank: .soldier, role: "Soldier", memoryTip: "This note can help with revision."),
+                Member(name: "Soldat Brun", rank: .soldier, role: "Soldier", memoryTip: "Extra roster depth for testing the expanded state.")
             ]
         ),
         CompanySection(
