@@ -10,75 +10,81 @@ import PhotosUI
 import SwiftUI
 
 struct AddMemberView: View {
-    @Bindable var store: CompanyDirectoryStore
-    let sectionID: UUID
+    let viewModel: AddEditMemberViewModel
 
     @Environment(\.dismiss) private var dismiss
-
-    @State private var name = ""
-    @State private var selectedRank: Rank = .soldier
-    @State private var phoneNumber = ""
-    @State private var role = ""
-    @State private var memoryTip = ""
-    @State private var bundledImageName = ""
     @State private var selectedPhotoItem: PhotosPickerItem?
-    @State private var selectedPhotoData: Data?
-    @State private var selectedPhotoPreview: Image?
-    @State private var isSaving = false
-    @State private var errorMessage = ""
 
     var body: some View {
+        @Bindable var viewModel = viewModel
+
         NavigationStack {
             Form {
                 Section("Identity") {
-                    TextField("Name", text: $name)
+                    TextField("Name", text: $viewModel.name)
 
-                    Picker("Rank", selection: $selectedRank) {
+                    Picker("Rank", selection: $viewModel.selectedRank) {
                         ForEach(Rank.allCases) { rank in
                             Text(rank.title).tag(rank)
                         }
                     }
 
-                    TextField("Phone Number (Optional)", text: $phoneNumber)
+                    TextField("Phone Number (Optional)", text: $viewModel.phoneNumber)
                         .keyboardType(.phonePad)
 
-                    TextField("Role", text: $role)
+                    TextField("Role", text: $viewModel.role)
                 }
 
                 Section("Memory") {
-                    TextField("Memory Tip", text: $memoryTip, axis: .vertical)
+                    TextField("Memory Tip", text: $viewModel.memoryTip, axis: .vertical)
                         .lineLimit(3...6)
                 }
 
                 Section("Photo") {
+                    Group {
+                        if let preview = viewModel.selectedPhotoPreview {
+                            Image(uiImage: preview)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(height: 180)
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                        } else if case .edit = viewModel.mode {
+                            MemberAvatar(member: viewModel.previewMember, size: 120)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 6)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+
                     PhotosPicker(
                         selection: $selectedPhotoItem,
                         matching: .images,
                         photoLibrary: .shared()
                     ) {
-                        Label("Import From Photo Library", systemImage: "photo.on.rectangle")
+                        Label(viewModel.modeLabelForPhotoAction, systemImage: "photo.on.rectangle")
                     }
 
-                    if let selectedPhotoPreview {
-                        selectedPhotoPreview
-                            .resizable()
-                            .scaledToFill()
-                            .frame(height: 180)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                    if case .edit = viewModel.mode {
+                        Button("Remove Custom Photo", role: .destructive) {
+                            selectedPhotoItem = nil
+                            viewModel.selectedPhotoData = nil
+                            viewModel.selectedPhotoPreview = nil
+                            viewModel.removePhoto = true
+                        }
                     }
 
-                    TextField("Bundled Asset Name (Optional)", text: $bundledImageName)
+                    TextField("Bundled Asset Name (Optional)", text: $viewModel.bundledImageName)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 
-                    if !errorMessage.isEmpty {
-                        Text(errorMessage)
+                    if !viewModel.errorMessage.isEmpty {
+                        Text(viewModel.errorMessage)
                             .font(.footnote)
                             .foregroundStyle(.red)
                     }
                 }
             }
-            .navigationTitle("Add Member")
+            .navigationTitle(viewModel.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .scrollContentBackground(.hidden)
             .background(AccentBackground().ignoresSafeArea())
@@ -93,10 +99,12 @@ struct AddMemberView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         Task {
-                            await saveMember()
+                            if await viewModel.save() {
+                                dismiss()
+                            }
                         }
                     }
-                    .disabled(isSaveDisabled)
+                    .disabled(viewModel.isSaveDisabled)
                     .tint(.white)
                 }
             }
@@ -106,55 +114,29 @@ struct AddMemberView: View {
         }
     }
 
-    private var isSaveDisabled: Bool {
-        isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
     @MainActor
     private func loadSelectedPhoto() async {
         guard let selectedPhotoItem else {
-            selectedPhotoData = nil
-            selectedPhotoPreview = nil
+            viewModel.loadSelectedPhotoData(nil)
             return
         }
 
         do {
-            if let data = try await selectedPhotoItem.loadTransferable(type: Data.self) {
-                selectedPhotoData = data
-                selectedPhotoPreview = Image(uiImage: UIImage(data: data) ?? UIImage())
-                errorMessage = ""
-            } else {
-                errorMessage = "Unable to load the selected photo."
-            }
+            let data = try await selectedPhotoItem.loadTransferable(type: Data.self)
+            viewModel.loadSelectedPhotoData(data)
         } catch {
-            errorMessage = "Unable to load the selected photo."
+            viewModel.errorMessage = "Unable to load the selected photo."
         }
     }
+}
 
-    @MainActor
-    private func saveMember() async {
-        isSaving = true
-        defer { isSaving = false }
-
-        do {
-            try store.addMember(
-                to: sectionID,
-                name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-                rank: selectedRank,
-                phoneNumber: phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines),
-                role: role.trimmingCharacters(in: .whitespacesAndNewlines),
-                memoryTip: memoryTip.trimmingCharacters(in: .whitespacesAndNewlines),
-                bundledImageName: normalizedBundledImageName,
-                importedPhotoData: selectedPhotoData
-            )
-            dismiss()
-        } catch {
-            errorMessage = "Unable to save this member."
+private extension AddEditMemberViewModel {
+    var modeLabelForPhotoAction: String {
+        switch mode {
+        case .add:
+            return "Import From Photo Library"
+        case .edit:
+            return "Change Profile Image"
         }
-    }
-
-    private var normalizedBundledImageName: String? {
-        let trimmed = bundledImageName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 }

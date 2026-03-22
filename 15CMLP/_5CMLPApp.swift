@@ -9,9 +9,11 @@ import SwiftUI
 
 @main
 struct _5CMLPApp: App {
+    @State private var store = CompanyDirectoryStore()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(store: store)
         }
     }
 }

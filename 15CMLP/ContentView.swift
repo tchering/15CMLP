@@ -5,27 +5,29 @@
 //  Created by sonam sherpa on 21/03/2026.
 //
 
+import Observation
 import SwiftUI
-import UniformTypeIdentifiers
 import UIKit
+import UniformTypeIdentifiers
 
 struct ContentView: View {
-    @State private var store = CompanyDirectoryStore()
-    @State private var isShowingExporter = false
-    @State private var isShowingImporter = false
-    @State private var backupDocument: CompanyBackupDocument?
-    @State private var alertMessage = ""
-    @State private var isShowingAlert = false
+    @State private var viewModel: HomeViewModel
+
+    init(store: CompanyDirectoryStore) {
+        _viewModel = State(initialValue: HomeViewModel(store: store))
+    }
 
     var body: some View {
+        @Bindable var viewModel = viewModel
+
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     HomeHeaderCard(
-                        sectionCount: store.sections.count,
-                        totalMembers: totalMembers,
-                        onExport: exportBackup,
-                        onImport: { isShowingImporter = true }
+                        sectionCount: viewModel.sections.count,
+                        totalMembers: viewModel.totalMembers,
+                        onExport: viewModel.exportBackup,
+                        onImport: { viewModel.isShowingImporter = true }
                     )
 
                     VStack(alignment: .leading, spacing: 14) {
@@ -34,9 +36,9 @@ struct ContentView: View {
                             .foregroundStyle(.white)
                             .padding(.horizontal, 4)
 
-                        ForEach(store.sections) { section in
+                        ForEach(viewModel.sections) { section in
                             NavigationLink {
-                                SectionDetailView(store: store, sectionID: section.id)
+                                SectionDetailView(store: viewModel.store, sectionID: section.id)
                             } label: {
                                 SectionCard(section: section)
                             }
@@ -51,69 +53,25 @@ struct ContentView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .fileExporter(
-                isPresented: $isShowingExporter,
-                document: backupDocument,
+                isPresented: $viewModel.isShowingExporter,
+                document: viewModel.backupDocument,
                 contentType: .json,
-                defaultFilename: backupFileName
+                defaultFilename: viewModel.backupFileName
             ) { result in
-                switch result {
-                case .success:
-                    showAlert(message: "Backup exported successfully.")
-                case .failure:
-                    showAlert(message: "Unable to export backup.")
-                }
+                viewModel.handleExporterResult(result)
             }
             .fileImporter(
-                isPresented: $isShowingImporter,
+                isPresented: $viewModel.isShowingImporter,
                 allowedContentTypes: [.json]
             ) { result in
-                handleImport(result: result)
+                viewModel.handleImport(result: result)
             }
-            .alert("Backup", isPresented: $isShowingAlert) {
+            .alert("Backup", isPresented: $viewModel.isShowingAlert) {
                 Button("OK", role: .cancel) { }
             } message: {
-                Text(alertMessage)
+                Text(viewModel.alertMessage)
             }
         }
-    }
-
-    private var totalMembers: Int {
-        store.sections.reduce(0) { $0 + $1.members.count }
-    }
-
-    private var backupFileName: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return "15CMLP-Backup-\(formatter.string(from: Date()))"
-    }
-
-    private func exportBackup() {
-        do {
-            backupDocument = try store.makeBackupDocument()
-            isShowingExporter = true
-        } catch {
-            showAlert(message: "Unable to prepare backup.")
-        }
-    }
-
-    private func handleImport(result: Result<URL, Error>) {
-        switch result {
-        case .success(let url):
-            do {
-                let data = try Data(contentsOf: url)
-                try store.importBackup(from: data)
-                showAlert(message: "Backup imported successfully.")
-            } catch {
-                showAlert(message: "Unable to import backup.")
-            }
-        case .failure:
-            showAlert(message: "Backup import was cancelled or failed.")
-        }
-    }
-
-    private func showAlert(message: String) {
-        alertMessage = message
-        isShowingAlert = true
     }
 }
 
@@ -340,5 +298,5 @@ private struct SectionCard: View {
 }
 
 #Preview {
-    ContentView()
+    ContentView(store: CompanyDirectoryStore())
 }

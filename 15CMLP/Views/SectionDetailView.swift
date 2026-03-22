@@ -9,33 +9,32 @@ import Observation
 import PhotosUI
 import SwiftUI
 import UIKit
-import Vision
 
 struct SectionDetailView: View {
-    @Bindable var store: CompanyDirectoryStore
-    let sectionID: UUID
+    @State private var viewModel: SectionDetailViewModel
 
-    @State private var isShowingAddMember = false
-    @State private var isShowingScanImport = false
-    @State private var expandedRanks: Set<Rank> = [.chefDeSection]
+    init(store: CompanyDirectoryStore, sectionID: UUID) {
+        _viewModel = State(initialValue: SectionDetailViewModel(store: store, sectionID: sectionID))
+    }
 
     var body: some View {
+        @Bindable var viewModel = viewModel
+
         Group {
-            if let section = store.section(withID: sectionID) {
+            if let section = viewModel.section {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         ForEach(section.membersByRank) { rankGroup in
                             RankStackCard(
-                                store: store,
-                                sectionID: sectionID,
+                                store: viewModel.store,
+                                sectionID: viewModel.sectionID,
                                 rankGroup: rankGroup,
-                                sectionName: section.name,
-                                isExpanded: expandedRanks.contains(rankGroup.rank),
+                                isExpanded: viewModel.isExpanded(rankGroup.rank),
                                 onToggle: {
-                                    toggle(rank: rankGroup.rank)
+                                    viewModel.toggle(rank: rankGroup.rank)
                                 },
                                 onDeleteMember: { member in
-                                    store.deleteMember(memberID: member.id, from: sectionID)
+                                    viewModel.deleteMember(member)
                                 }
                             )
                         }
@@ -50,13 +49,13 @@ struct SectionDetailView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             Button {
-                                isShowingAddMember = true
+                                viewModel.isShowingAddMember = true
                             } label: {
                                 Label("Add Member", systemImage: "plus")
                             }
 
                             Button {
-                                isShowingScanImport = true
+                                viewModel.isShowingScanImport = true
                             } label: {
                                 Label("Scan Image", systemImage: "text.viewfinder")
                             }
@@ -66,32 +65,26 @@ struct SectionDetailView: View {
                         .tint(.white)
                     }
                 }
-                .sheet(isPresented: $isShowingAddMember) {
-                    AddMemberView(store: store, sectionID: sectionID)
+                .sheet(isPresented: $viewModel.isShowingAddMember) {
+                    AddMemberView(
+                        viewModel: AddEditMemberViewModel(
+                            store: viewModel.store,
+                            mode: .add(sectionID: viewModel.sectionID)
+                        )
+                    )
                 }
-                .sheet(isPresented: $isShowingScanImport) {
-                    OCRImportView(store: store, sectionID: sectionID)
+                .sheet(isPresented: $viewModel.isShowingScanImport) {
+                    OCRImportView(viewModel: viewModel)
                 }
             } else {
                 ContentUnavailableView("Section Missing", systemImage: "exclamationmark.triangle")
             }
         }
     }
-
-    private func toggle(rank: Rank) {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-            if expandedRanks.contains(rank) {
-                expandedRanks.remove(rank)
-            } else {
-                expandedRanks.insert(rank)
-            }
-        }
-    }
 }
 
 private struct OCRImportView: View {
-    @Bindable var store: CompanyDirectoryStore
-    let sectionID: UUID
+    let viewModel: SectionDetailViewModel
 
     @Environment(\.dismiss) private var dismiss
 
@@ -222,8 +215,8 @@ private struct OCRImportView: View {
             }
 
             selectedImage = image
-            let recognizedText = try OCRTextRecognizer.recognizeText(in: image)
-            extractedText = store.formattedRosterReviewText(from: recognizedText)
+            let recognizedText = try viewModel.recognizeRosterText(in: image)
+            extractedText = viewModel.formattedRosterReviewText(from: recognizedText)
             errorMessage = extractedText.isEmpty ? "No text was recognized in this image." : ""
         } catch {
             errorMessage = "Unable to scan text from the selected image."
@@ -232,11 +225,7 @@ private struct OCRImportView: View {
 
     private func importRoster() {
         do {
-            _ = try store.importRosterText(
-                extractedText,
-                into: sectionID,
-                replaceExisting: replaceExisting
-            )
+            try viewModel.importRosterText(extractedText, replaceExisting: replaceExisting)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
@@ -244,38 +233,10 @@ private struct OCRImportView: View {
     }
 }
 
-private enum OCRTextRecognizer {
-    static func recognizeText(in image: UIImage) throws -> String {
-        guard let cgImage = image.cgImage else {
-            throw OCRImportError.invalidImage
-        }
-
-        let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
-        request.usesLanguageCorrection = false
-        request.recognitionLanguages = ["fr-FR", "en-US"]
-
-        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-        try handler.perform([request])
-
-        let observations = request.results ?? []
-        let recognizedLines = observations.compactMap { observation in
-            observation.topCandidates(1).first?.string
-        }
-
-        return recognizedLines.joined(separator: "\n")
-    }
-
-    enum OCRImportError: Error {
-        case invalidImage
-    }
-}
-
 private struct RankStackCard: View {
     let store: CompanyDirectoryStore
     let sectionID: UUID
     let rankGroup: RankGroup
-    let sectionName: String
     let isExpanded: Bool
     let onToggle: () -> Void
     let onDeleteMember: (Member) -> Void

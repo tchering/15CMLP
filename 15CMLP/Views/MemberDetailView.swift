@@ -6,25 +6,24 @@
 //
 
 import Observation
-import PhotosUI
 import SwiftUI
 import UIKit
 
 struct MemberDetailView: View {
-    @Bindable var store: CompanyDirectoryStore
-    let sectionID: UUID
-    let memberID: UUID
+    @State private var viewModel: MemberDetailViewModel
 
     @Environment(\.openURL) private var openURL
 
-    @State private var isShowingEditSheet = false
-    @State private var alertMessage = ""
-    @State private var isShowingAlert = false
+    init(store: CompanyDirectoryStore, sectionID: UUID, memberID: UUID) {
+        _viewModel = State(initialValue: MemberDetailViewModel(store: store, sectionID: sectionID, memberID: memberID))
+    }
 
     var body: some View {
+        @Bindable var viewModel = viewModel
+
         Group {
-            if let section = store.section(withID: sectionID),
-               let member = store.member(withID: memberID, in: sectionID) {
+            if let section = viewModel.section,
+               let member = viewModel.member {
                 ScrollView {
                     VStack(spacing: 20) {
                         MemberAvatar(member: member, size: 150)
@@ -54,8 +53,8 @@ struct MemberDetailView: View {
                             DetailRow(title: "Grade", value: member.rank.title)
                             PhoneDetailRow(
                                 phoneNumber: member.phoneNumber,
-                                onCall: { call(phoneNumber: member.phoneNumber) },
-                                onCopy: { copy(phoneNumber: member.phoneNumber) }
+                                onCall: { call(using: viewModel) },
+                                onCopy: { copy(using: viewModel) }
                             )
                             DetailRow(title: "Role", value: member.role)
                             DetailRow(title: "Memory Tip", value: member.memoryTip)
@@ -77,22 +76,23 @@ struct MemberDetailView: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Edit") {
-                            isShowingEditSheet = true
+                            viewModel.isShowingEditSheet = true
                         }
                         .tint(.white)
                     }
                 }
-                .sheet(isPresented: $isShowingEditSheet) {
-                    EditMemberView(
-                        store: store,
-                        sectionID: sectionID,
-                        member: member
+                .sheet(isPresented: $viewModel.isShowingEditSheet) {
+                    AddMemberView(
+                        viewModel: AddEditMemberViewModel(
+                            store: viewModel.store,
+                            mode: .edit(sectionID: viewModel.sectionID, member: member)
+                        )
                     )
                 }
-                .alert("Phone Action", isPresented: $isShowingAlert) {
+                .alert("Phone Action", isPresented: $viewModel.isShowingAlert) {
                     Button("OK", role: .cancel) { }
                 } message: {
-                    Text(alertMessage)
+                    Text(viewModel.alertMessage)
                 }
             } else {
                 ContentUnavailableView("Member Missing", systemImage: "person.crop.circle.badge.exclamationmark")
@@ -100,225 +100,23 @@ struct MemberDetailView: View {
         }
     }
 
-    private func call(phoneNumber: String) {
-        let digits = phoneNumber.filter { $0.isNumber || $0 == "+" }
-        guard !digits.isEmpty, let url = URL(string: "tel://\(digits)") else {
-            showAlert(message: "This phone number is not valid for calling.")
+    private func call(using viewModel: MemberDetailViewModel) {
+        guard let url = viewModel.callURL() else {
+            viewModel.showAlert(message: "This phone number is not valid for calling.")
             return
         }
 
         openURL(url)
     }
 
-    private func copy(phoneNumber: String) {
-        guard !phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            showAlert(message: "There is no phone number to copy.")
+    private func copy(using viewModel: MemberDetailViewModel) {
+        guard let number = viewModel.copyMessage() else {
+            viewModel.showAlert(message: "There is no phone number to copy.")
             return
         }
 
-        UIPasteboard.general.string = phoneNumber
-        showAlert(message: "Phone number copied.")
-    }
-
-    private func showAlert(message: String) {
-        alertMessage = message
-        isShowingAlert = true
-    }
-}
-
-private struct EditMemberView: View {
-    @Bindable var store: CompanyDirectoryStore
-    let sectionID: UUID
-    let member: Member
-
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var name: String
-    @State private var selectedRank: Rank
-    @State private var phoneNumber: String
-    @State private var role: String
-    @State private var memoryTip: String
-    @State private var bundledImageName: String
-    @State private var selectedPhotoItem: PhotosPickerItem?
-    @State private var selectedPhotoData: Data?
-    @State private var selectedPhotoPreview: Image?
-    @State private var removePhoto = false
-    @State private var isSaving = false
-    @State private var errorMessage = ""
-
-    init(store: CompanyDirectoryStore, sectionID: UUID, member: Member) {
-        self.store = store
-        self.sectionID = sectionID
-        self.member = member
-        _name = State(initialValue: member.name)
-        _selectedRank = State(initialValue: member.rank)
-        _phoneNumber = State(initialValue: member.phoneNumber)
-        _role = State(initialValue: member.role)
-        _memoryTip = State(initialValue: member.memoryTip)
-        _bundledImageName = State(initialValue: member.bundledImageName ?? "")
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Identity") {
-                    TextField("Name", text: $name)
-
-                    Picker("Rank", selection: $selectedRank) {
-                        ForEach(Rank.allCases) { rank in
-                            Text(rank.title).tag(rank)
-                        }
-                    }
-
-                    TextField("Phone Number (Optional)", text: $phoneNumber)
-                        .keyboardType(.phonePad)
-
-                    TextField("Role", text: $role)
-                }
-
-                Section("Memory") {
-                    TextField("Memory Tip", text: $memoryTip, axis: .vertical)
-                        .lineLimit(3...6)
-                }
-
-                Section("Photo") {
-                    Group {
-                        if let selectedPhotoPreview {
-                            selectedPhotoPreview
-                                .resizable()
-                                .scaledToFill()
-                                .frame(height: 180)
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
-                        } else {
-                            MemberAvatar(member: previewMember, size: 120)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 6)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-
-                    PhotosPicker(
-                        selection: $selectedPhotoItem,
-                        matching: .images,
-                        photoLibrary: .shared()
-                    ) {
-                        Label("Change Profile Image", systemImage: "photo.on.rectangle")
-                    }
-
-                    Button("Remove Custom Photo", role: .destructive) {
-                        selectedPhotoItem = nil
-                        selectedPhotoData = nil
-                        selectedPhotoPreview = nil
-                        removePhoto = true
-                    }
-
-                    TextField("Bundled Asset Name (Optional)", text: $bundledImageName)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-
-                    if !errorMessage.isEmpty {
-                        Text(errorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                    }
-                }
-            }
-            .navigationTitle("Edit Member")
-            .navigationBarTitleDisplayMode(.inline)
-            .scrollContentBackground(.hidden)
-            .background(AccentBackground().ignoresSafeArea())
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .tint(.white)
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        Task {
-                            await saveChanges()
-                        }
-                    }
-                    .disabled(isSaveDisabled)
-                    .tint(.white)
-                }
-            }
-        }
-        .task(id: selectedPhotoItem) {
-            await loadSelectedPhoto()
-        }
-    }
-
-    private var isSaveDisabled: Bool {
-        isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var previewMember: Member {
-        Member(
-            id: member.id,
-            name: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? member.name : name,
-            rank: selectedRank,
-            phoneNumber: phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines),
-            role: role,
-            memoryTip: memoryTip,
-            bundledImageName: normalizedBundledImageName ?? member.bundledImageName,
-            storedPhotoFileName: removePhoto ? nil : member.storedPhotoFileName
-        )
-    }
-
-    @MainActor
-    private func loadSelectedPhoto() async {
-        guard let selectedPhotoItem else {
-            return
-        }
-
-        do {
-            if let data = try await selectedPhotoItem.loadTransferable(type: Data.self) {
-                selectedPhotoData = data
-                if let uiImage = UIImage(data: data) {
-                    selectedPhotoPreview = Image(uiImage: uiImage)
-                } else {
-                    selectedPhotoPreview = nil
-                }
-                removePhoto = false
-                errorMessage = ""
-            } else {
-                errorMessage = "Unable to load the selected photo."
-            }
-        } catch {
-            errorMessage = "Unable to load the selected photo."
-        }
-    }
-
-    @MainActor
-    private func saveChanges() async {
-        isSaving = true
-        defer { isSaving = false }
-
-        do {
-            try store.updateMember(
-                in: sectionID,
-                memberID: member.id,
-                name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-                rank: selectedRank,
-                phoneNumber: phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines),
-                role: role.trimmingCharacters(in: .whitespacesAndNewlines),
-                memoryTip: memoryTip.trimmingCharacters(in: .whitespacesAndNewlines),
-                bundledImageName: normalizedBundledImageName,
-                importedPhotoData: selectedPhotoData,
-                removePhoto: removePhoto
-            )
-            dismiss()
-        } catch {
-            errorMessage = "Unable to save changes."
-        }
-    }
-
-    private var normalizedBundledImageName: String? {
-        let trimmed = bundledImageName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        UIPasteboard.general.string = number
+        viewModel.showAlert(message: "Phone number copied.")
     }
 }
 
@@ -378,15 +176,11 @@ private struct PhoneDetailRow: View {
                 }
                 .buttonStyle(.plain)
                 .contextMenu {
-                    Button {
-                        onCall()
-                    } label: {
+                    Button(action: onCall) {
                         Label("Call", systemImage: "phone.fill")
                     }
 
-                    Button {
-                        onCopy()
-                    } label: {
+                    Button(action: onCopy) {
                         Label("Copy Number", systemImage: "doc.on.doc")
                     }
                 }
@@ -401,7 +195,7 @@ struct MemberAvatar: View {
 
     var body: some View {
         Group {
-            if let uiImage = MemberPhotoStorage.loadImage(for: member) {
+            if let uiImage = MemberPhotoStorageService.shared.loadImage(for: member) {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
