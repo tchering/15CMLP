@@ -25,6 +25,17 @@ struct CompanySection: Identifiable, Codable, Equatable {
         membersByRank.map { "\($0.rank.shortTitle): \($0.members.count)" }
     }
 
+    static let renfortSection = CompanySection(
+        id: UUID(),
+        name: "Renfort",
+        summary: "Use this section for attached personnel and reinforcements.",
+        members: [
+            Member(name: "Adjudant Colin", rank: .chefDeSection, role: "Renfort lead", memoryTip: "Replace this sample with the real reinforcement lead."),
+            Member(name: "Sergent Morel", rank: .sergent, role: "Support NCO", memoryTip: "Use Renfort for temporary or attached personnel."),
+            Member(name: "Caporal Diaz", rank: .caporal, role: "Support specialist", memoryTip: "Add whoever is currently attached to the company.")
+        ]
+    )
+
     static let sampleSections: [CompanySection] = [
         CompanySection(
             id: UUID(),
@@ -72,7 +83,8 @@ struct CompanySection: Identifiable, Codable, Equatable {
                 Member(name: "Caporal Chevalier", rank: .caporal, role: "Caporal", memoryTip: "Uniform or posture can be useful cues."),
                 Member(name: "Soldat Perrin", rank: .soldier, role: "Soldier", memoryTip: "You can keep this as a personal study aid.")
             ]
-        )
+        ),
+        renfortSection
     ]
 }
 

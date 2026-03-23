@@ -30,7 +30,13 @@ final class CompanyDirectoryStore {
             persistence: persistence
         )
         self.rosterImportService = rosterImportService
-        self.sections = persistence.loadSections()
+        self.sections = Self.ensureDefaultSections(in: persistence.loadSections())
+
+        do {
+            try persistence.saveSections(sections)
+        } catch {
+            assertionFailure("Failed to persist default sections.")
+        }
     }
 
     func makeBackupDocument() throws -> CompanyBackupDocument {
@@ -166,5 +172,15 @@ final class CompanyDirectoryStore {
         } catch {
             assertionFailure("Failed to save sections after deleting members.")
         }
+    }
+
+    private static func ensureDefaultSections(in sections: [CompanySection]) -> [CompanySection] {
+        var updatedSections = sections
+
+        if !updatedSections.contains(where: { $0.name.localizedCaseInsensitiveCompare("Renfort") == .orderedSame }) {
+            updatedSections.append(CompanySection.renfortSection)
+        }
+
+        return updatedSections
     }
 }
