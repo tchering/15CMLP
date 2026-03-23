@@ -61,7 +61,15 @@ final class SectionDetailViewModel {
         store.formattedRosterReviewText(from: text)
     }
 
+    func rosterCandidates(from text: String) throws -> [RosterImportService.Candidate] {
+        try store.rosterCandidates(from: text)
+    }
+
     func importRosterText(_ text: String, replaceExisting: Bool) throws {
         _ = try store.importRosterText(text, into: sectionID, replaceExisting: replaceExisting)
+    }
+
+    func importMembers(_ members: [Member], replaceExisting: Bool) throws {
+        _ = try store.importMembers(members, into: sectionID, replaceExisting: replaceExisting)
     }
 }

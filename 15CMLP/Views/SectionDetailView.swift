@@ -94,6 +94,8 @@ private struct OCRImportView: View {
     @State private var replaceExisting = true
     @State private var isRecognizing = false
     @State private var errorMessage = ""
+    @State private var candidates: [RosterImportService.Candidate] = []
+    @State private var selectedCandidateIDs = Set<UUID>()
 
     var body: some View {
         NavigationStack {
@@ -144,7 +146,7 @@ private struct OCRImportView: View {
                             .font(.headline)
                             .foregroundStyle(.white)
 
-                        Text("The OCR result is shown in a grade/name roster layout so you can correct it before import.")
+                        Text("The OCR result is shown in a grade/name/phone layout when possible so you can correct it before import.")
                             .font(.footnote)
                             .foregroundStyle(.white.opacity(0.68))
 
@@ -159,6 +161,37 @@ private struct OCRImportView: View {
                                     .stroke(.white.opacity(0.10), lineWidth: 1)
                             )
                             .foregroundStyle(.white)
+                    }
+
+                    HStack {
+                        Text("Detected People")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+
+                        Spacer()
+
+                        Button("Refresh List") {
+                            refreshCandidates()
+                        }
+                        .font(.footnote.weight(.semibold))
+                        .tint(.white)
+                    }
+
+                    if candidates.isEmpty {
+                        Text("No valid people have been extracted yet. Review the text above, then tap Refresh List.")
+                            .font(.footnote)
+                            .foregroundStyle(.white.opacity(0.68))
+                    } else {
+                        VStack(spacing: 10) {
+                            ForEach(candidates) { candidate in
+                                CandidateRow(
+                                    candidate: candidate,
+                                    isSelected: selectedCandidateIDs.contains(candidate.id)
+                                ) {
+                                    toggleSelection(for: candidate.id)
+                                }
+                            }
+                        }
                     }
 
                     Toggle("Replace existing members in this section", isOn: $replaceExisting)
@@ -188,7 +221,7 @@ private struct OCRImportView: View {
                     Button("Import") {
                         importRoster()
                     }
-                    .disabled(extractedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isRecognizing)
+                    .disabled(selectedCandidateIDs.isEmpty || isRecognizing)
                     .tint(.white)
                 }
             }
@@ -217,6 +250,7 @@ private struct OCRImportView: View {
             selectedImage = image
             let recognizedText = try viewModel.recognizeRosterText(in: image)
             extractedText = viewModel.formattedRosterReviewText(from: recognizedText)
+            refreshCandidates()
             errorMessage = extractedText.isEmpty ? "No text was recognized in this image." : ""
         } catch {
             errorMessage = "Unable to scan text from the selected image."
@@ -225,11 +259,71 @@ private struct OCRImportView: View {
 
     private func importRoster() {
         do {
-            try viewModel.importRosterText(extractedText, replaceExisting: replaceExisting)
+            let selectedMembers = candidates
+                .filter { selectedCandidateIDs.contains($0.id) }
+                .map(\.member)
+            try viewModel.importMembers(selectedMembers, replaceExisting: replaceExisting)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func refreshCandidates() {
+        do {
+            candidates = try viewModel.rosterCandidates(from: extractedText)
+            selectedCandidateIDs = Set(candidates.map(\.id))
+            errorMessage = candidates.isEmpty ? "No valid members were detected in the reviewed text." : ""
+        } catch {
+            candidates = []
+            selectedCandidateIDs = []
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func toggleSelection(for id: UUID) {
+        if selectedCandidateIDs.contains(id) {
+            selectedCandidateIDs.remove(id)
+        } else {
+            selectedCandidateIDs.insert(id)
+        }
+    }
+}
+
+private struct CandidateRow: View {
+    let candidate: RosterImportService.Candidate
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isSelected ? .cyan : .white.opacity(0.55))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(candidate.member.name)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+
+                    HStack(spacing: 8) {
+                        Text(candidate.member.rank.title)
+                        if !candidate.member.phoneNumber.isEmpty {
+                            Text(candidate.member.phoneNumber)
+                        }
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.72))
+                }
+
+                Spacer()
+            }
+            .padding(14)
+            .background(Color.white.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 

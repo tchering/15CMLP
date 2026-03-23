@@ -51,6 +51,10 @@ final class CompanyDirectoryStore {
         rosterImportService.formattedReview(from: text)
     }
 
+    func rosterCandidates(from text: String) throws -> [RosterImportService.Candidate] {
+        try rosterImportService.candidates(from: text)
+    }
+
     @discardableResult
     func importRosterText(_ text: String, into sectionID: UUID, replaceExisting: Bool) throws -> Int {
         guard let sectionIndex = sections.firstIndex(where: { $0.id == sectionID }) else {
@@ -70,6 +74,25 @@ final class CompanyDirectoryStore {
 
         try persistence.saveSections(sections)
         return importedMembers.count
+    }
+
+    @discardableResult
+    func importMembers(_ members: [Member], into sectionID: UUID, replaceExisting: Bool) throws -> Int {
+        guard let sectionIndex = sections.firstIndex(where: { $0.id == sectionID }) else {
+            return 0
+        }
+
+        if replaceExisting {
+            for member in sections[sectionIndex].members {
+                photoStorage.deletePhoto(fileName: member.storedPhotoFileName)
+            }
+            sections[sectionIndex].members = members
+        } else {
+            sections[sectionIndex].members.append(contentsOf: members)
+        }
+
+        try persistence.saveSections(sections)
+        return members.count
     }
 
     func section(withID sectionID: UUID) -> CompanySection? {
