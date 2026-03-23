@@ -54,6 +54,8 @@ struct MemberDetailView: View {
                             PhoneDetailRow(
                                 phoneNumber: member.phoneNumber,
                                 onCall: { call(using: viewModel) },
+                                onMessage: { message(using: viewModel) },
+                                onWhatsApp: { whatsapp(using: viewModel) },
                                 onCopy: { copy(using: viewModel) }
                             )
                             DetailRow(title: "Role", value: member.role)
@@ -118,6 +120,29 @@ struct MemberDetailView: View {
         UIPasteboard.general.string = number
         viewModel.showAlert(message: "Phone number copied.")
     }
+
+    private func message(using viewModel: MemberDetailViewModel) {
+        guard let url = viewModel.messageURL() else {
+            viewModel.showAlert(message: "This phone number is not valid for messaging.")
+            return
+        }
+
+        openURL(url)
+    }
+
+    private func whatsapp(using viewModel: MemberDetailViewModel) {
+        guard let url = viewModel.whatsappURL() else {
+            viewModel.showAlert(message: "This phone number is not valid for WhatsApp.")
+            return
+        }
+
+        guard viewModel.canOpenWhatsApp() else {
+            viewModel.showAlert(message: "WhatsApp is not available on this device.")
+            return
+        }
+
+        openURL(url)
+    }
 }
 
 private struct DetailRow: View {
@@ -140,6 +165,8 @@ private struct DetailRow: View {
 private struct PhoneDetailRow: View {
     let phoneNumber: String
     let onCall: () -> Void
+    let onMessage: () -> Void
+    let onWhatsApp: () -> Void
     let onCopy: () -> Void
 
     var body: some View {
@@ -153,31 +180,61 @@ private struct PhoneDetailRow: View {
                     .font(.body)
                     .foregroundStyle(.white)
             } else {
-                Button(action: onCall) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(phoneNumber)
-                                .font(.body.weight(.semibold))
+                VStack(spacing: 10) {
+                    Button(action: onCall) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(phoneNumber)
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(.white)
+
+                                Text("Tap to call")
+                                    .font(.caption)
+                                    .foregroundStyle(.cyan)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "phone.fill")
                                 .foregroundStyle(.white)
-
-                            Text("Tap to call")
-                                .font(.caption)
-                                .foregroundStyle(.cyan)
                         }
-
-                        Spacer()
-
-                        Image(systemName: "phone.fill")
-                            .foregroundStyle(.white)
+                        .padding(12)
+                        .background(Color.white.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
-                    .padding(12)
-                    .background(Color.white.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .buttonStyle(.plain)
+
+                    HStack(spacing: 10) {
+                        PhoneShortcutButton(
+                            title: "SMS",
+                            systemImage: "message.fill",
+                            action: onMessage
+                        )
+
+                        PhoneShortcutButton(
+                            title: "WhatsApp",
+                            systemImage: "bubble.left.and.bubble.right.fill",
+                            action: onWhatsApp
+                        )
+
+                        PhoneShortcutButton(
+                            title: "Copy",
+                            systemImage: "doc.on.doc",
+                            action: onCopy
+                        )
+                    }
                 }
-                .buttonStyle(.plain)
                 .contextMenu {
                     Button(action: onCall) {
                         Label("Call", systemImage: "phone.fill")
+                    }
+
+                    Button(action: onMessage) {
+                        Label("Message", systemImage: "message.fill")
+                    }
+
+                    Button(action: onWhatsApp) {
+                        Label("WhatsApp", systemImage: "bubble.left.and.bubble.right.fill")
                     }
 
                     Button(action: onCopy) {
@@ -186,6 +243,30 @@ private struct PhoneDetailRow: View {
                 }
             }
         }
+    }
+}
+
+private struct PhoneShortcutButton: View {
+    let title: String
+    let systemImage: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.headline)
+
+                Text(title)
+                    .font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(Color.white.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 

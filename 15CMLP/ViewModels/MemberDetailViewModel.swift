@@ -7,6 +7,7 @@
 
 import Foundation
 import Observation
+import UIKit
 
 @Observable
 final class MemberDetailViewModel {
@@ -33,16 +34,19 @@ final class MemberDetailViewModel {
     }
 
     func callURL() -> URL? {
-        guard let member else {
+        url(forScheme: "tel://")
+    }
+
+    func messageURL() -> URL? {
+        url(forScheme: "sms:")
+    }
+
+    func whatsappURL() -> URL? {
+        guard let digits = normalizedPhoneNumber() else {
             return nil
         }
 
-        let digits = member.phoneNumber.filter { $0.isNumber || $0 == "+" }
-        guard !digits.isEmpty else {
-            return nil
-        }
-
-        return URL(string: "tel://\(digits)")
+        return URL(string: "whatsapp://send?phone=\(digits)")
     }
 
     func copyMessage() -> String? {
@@ -57,5 +61,30 @@ final class MemberDetailViewModel {
     func showAlert(message: String) {
         alertMessage = message
         isShowingAlert = true
+    }
+
+    func canOpenWhatsApp() -> Bool {
+        guard let url = whatsappURL() else {
+            return false
+        }
+
+        return UIApplication.shared.canOpenURL(url)
+    }
+
+    private func url(forScheme scheme: String) -> URL? {
+        guard let digits = normalizedPhoneNumber() else {
+            return nil
+        }
+
+        return URL(string: "\(scheme)\(digits)")
+    }
+
+    private func normalizedPhoneNumber() -> String? {
+        guard let member else {
+            return nil
+        }
+
+        let digits = member.phoneNumber.filter { $0.isNumber || $0 == "+" }
+        return digits.isEmpty ? nil : digits
     }
 }
