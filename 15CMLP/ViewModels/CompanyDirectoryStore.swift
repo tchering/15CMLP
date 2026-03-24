@@ -198,12 +198,21 @@ final class CompanyDirectoryStore {
     }
 
     private static func ensureDefaultSections(in sections: [CompanySection]) -> [CompanySection] {
-        var updatedSections = sections
+        let defaultNames = Set(CompanySection.sampleSections.map { $0.name.lowercased() })
+        var orderedSections: [CompanySection] = []
 
-        if !updatedSections.contains(where: { $0.name.localizedCaseInsensitiveCompare("Renfort") == .orderedSame }) {
-            updatedSections.append(CompanySection.renfortSection)
+        for defaultSection in CompanySection.sampleSections {
+            if let existingSection = sections.first(where: {
+                $0.name.localizedCaseInsensitiveCompare(defaultSection.name) == .orderedSame
+            }) {
+                orderedSections.append(existingSection)
+            } else {
+                orderedSections.append(defaultSection)
+            }
         }
 
-        return updatedSections
+        let customSections = sections.filter { !defaultNames.contains($0.name.lowercased()) }
+        orderedSections.append(contentsOf: customSections)
+        return orderedSections
     }
 }
