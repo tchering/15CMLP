@@ -21,9 +21,9 @@ struct AddMemberView: View {
         NavigationStack {
             Form {
                 Section("Identity") {
-                    TextField("Name", text: $viewModel.name)
+                    TextField("NOM", text: $viewModel.name)
 
-                    Picker("Rank", selection: $viewModel.selectedRank) {
+                    Picker("GRADE", selection: $viewModel.selectedRank) {
                         ForEach(Rank.allCases) { rank in
                             Text(rank.title).tag(rank)
                         }
