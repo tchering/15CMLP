@@ -20,15 +20,24 @@ final class SectionDetailViewModel {
     var scanErrorMessage = ""
 
     private let ocrService: OCRTextRecognitionService
+    private let spaExtractionService: SPALLMExtractionService
+    private let spaValidationService: SPAEntryValidationService
+    private let spaMatchingService: SPAMemberMatchingService
 
     init(
         store: CompanyDirectoryStore,
         sectionID: UUID,
-        ocrService: OCRTextRecognitionService = OCRTextRecognitionService()
+        ocrService: OCRTextRecognitionService = OCRTextRecognitionService(),
+        spaExtractionService: SPALLMExtractionService = SPALLMExtractionService(),
+        spaValidationService: SPAEntryValidationService = SPAEntryValidationService(),
+        spaMatchingService: SPAMemberMatchingService = SPAMemberMatchingService()
     ) {
         self.store = store
         self.sectionID = sectionID
         self.ocrService = ocrService
+        self.spaExtractionService = spaExtractionService
+        self.spaValidationService = spaValidationService
+        self.spaMatchingService = spaMatchingService
     }
 
     var section: CompanySection? {
@@ -55,6 +64,25 @@ final class SectionDetailViewModel {
 
     func recognizeRosterText(in image: UIImage) throws -> String {
         try ocrService.recognizeText(in: image)
+    }
+
+    func extractSPAEntries(from image: UIImage) async throws -> [SPAEntry] {
+        let rawText = try ocrService.recognizeText(in: image)
+        let entries = try await spaExtractionService.extractEntries(from: rawText)
+        return matchSPAEntries(spaValidationService.validate(entries))
+    }
+
+    func extractSPAEntries(from rawText: String) async throws -> [SPAEntry] {
+        let entries = try await spaExtractionService.extractEntries(from: rawText)
+        return matchSPAEntries(spaValidationService.validate(entries))
+    }
+
+    func matchSPAEntries(_ entries: [SPAEntry]) -> [SPAEntry] {
+        guard let section else {
+            return entries
+        }
+
+        return spaMatchingService.match(entries, in: section)
     }
 
     func formattedRosterReviewText(from text: String) -> String {
