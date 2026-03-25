@@ -31,13 +31,20 @@ struct SPALLMExtractionService {
 
         static func load() -> Configuration? {
             let environment = ProcessInfo.processInfo.environment
-            let apiKey = environment["OPENAI_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let fileSecrets = LocalSecrets.load()
+            let apiKey = (
+                environment["OPENAI_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ??
+                fileSecrets?.apiKey
+            ) ?? ""
 
             guard !apiKey.isEmpty else {
                 return nil
             }
 
-            let model = environment["OPENAI_MODEL"]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "gpt-5"
+            let model = (
+                environment["OPENAI_MODEL"]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ??
+                fileSecrets?.model
+            ) ?? "gpt-5"
             let organizationID = environment["OPENAI_ORGANIZATION_ID"]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
             let projectID = environment["OPENAI_PROJECT_ID"]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
 
@@ -366,6 +373,28 @@ private extension SPALLMExtractionService {
 
     struct APIError: Decodable {
         let message: String
+    }
+
+    struct LocalSecrets {
+        let apiKey: String?
+        let model: String?
+
+        static func load(bundle: Bundle = .main) -> LocalSecrets? {
+            guard let url = bundle.url(forResource: "LocalSecrets", withExtension: "plist"),
+                  let data = try? Data(contentsOf: url),
+                  let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
+                return nil
+            }
+
+            let apiKey = (plist["OPENAI_API_KEY"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nonEmpty
+            let model = (plist["OPENAI_MODEL"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nonEmpty
+
+            return LocalSecrets(apiKey: apiKey, model: model)
+        }
     }
 }
 
