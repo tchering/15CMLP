@@ -16,6 +16,7 @@ final class SectionDetailViewModel {
 
     var isShowingAddMember = false
     var isShowingScanImport = false
+    var isShowingSPAScanReview = false
     var expandedRanks: Set<Rank> = [.chefDeSection]
     var scanErrorMessage = ""
 
@@ -83,6 +84,15 @@ final class SectionDetailViewModel {
         }
 
         return spaMatchingService.match(entries, in: section)
+    }
+
+    func memberName(for memberID: UUID?) -> String {
+        guard let memberID,
+              let member = store.member(withID: memberID, in: sectionID) else {
+            return ""
+        }
+
+        return member.name
     }
 
     func formattedRosterReviewText(from text: String) -> String {

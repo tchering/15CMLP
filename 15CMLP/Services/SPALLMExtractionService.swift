@@ -33,8 +33,8 @@ struct SPALLMExtractionService {
             let environment = ProcessInfo.processInfo.environment
             let fileSecrets = LocalSecrets.load()
             let apiKey = (
-                environment["OPENAI_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ??
-                fileSecrets?.apiKey
+                fileSecrets?.apiKey ??
+                environment["OPENAI_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
             ) ?? ""
 
             guard !apiKey.isEmpty else {
@@ -42,8 +42,8 @@ struct SPALLMExtractionService {
             }
 
             let model = (
-                environment["OPENAI_MODEL"]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ??
-                fileSecrets?.model
+                fileSecrets?.model ??
+                environment["OPENAI_MODEL"]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
             ) ?? "gpt-5"
             let organizationID = environment["OPENAI_ORGANIZATION_ID"]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
             let projectID = environment["OPENAI_PROJECT_ID"]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty

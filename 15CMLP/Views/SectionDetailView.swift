@@ -57,7 +57,13 @@ struct SectionDetailView: View {
                             Button {
                                 viewModel.isShowingScanImport = true
                             } label: {
-                                Label("Scan Image", systemImage: "text.viewfinder")
+                                Label("Import Roster", systemImage: "text.viewfinder")
+                            }
+
+                            Button {
+                                viewModel.isShowingSPAScanReview = true
+                            } label: {
+                                Label("Scan SPA", systemImage: "doc.text.viewfinder")
                             }
                         } label: {
                             Image(systemName: "plus")
@@ -76,10 +82,334 @@ struct SectionDetailView: View {
                 .sheet(isPresented: $viewModel.isShowingScanImport) {
                     OCRImportView(viewModel: viewModel)
                 }
+                .sheet(isPresented: $viewModel.isShowingSPAScanReview) {
+                    SPAScanReviewView(viewModel: viewModel)
+                }
             } else {
                 ContentUnavailableView("Section Missing", systemImage: "exclamationmark.triangle")
             }
         }
+    }
+}
+
+private struct SPAScanReviewView: View {
+    let viewModel: SectionDetailViewModel
+
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var selectedImage: UIImage?
+    @State private var entries: [SPAEntry] = []
+    @State private var selectedEntryIDs = Set<UUID>()
+    @State private var isProcessing = false
+    @State private var errorMessage = ""
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Choose a SPA image. The app will run OCR, send the raw text to the LLM, validate the rows, and show match results before any update is applied.")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.74))
+
+                    PhotosPicker(
+                        selection: $selectedPhotoItem,
+                        matching: .images,
+                        photoLibrary: .shared()
+                    ) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "doc.text.viewfinder")
+                            Text(selectedImage == nil ? "Choose SPA Image" : "Change SPA Image")
+                        }
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(.white.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+
+                    if let selectedImage {
+                        Image(uiImage: selectedImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity)
+                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .stroke(.white.opacity(0.10), lineWidth: 1)
+                            )
+                    }
+
+                    if isProcessing {
+                        ProgressView("Extracting SPA rows...")
+                            .tint(.white)
+                            .foregroundStyle(.white)
+                    }
+
+                    SPAReviewSummary(entries: entries, selectedEntryIDs: selectedEntryIDs)
+
+                    if entries.isEmpty {
+                        Text("No SPA rows yet. Select an image to extract and review the daily status table.")
+                            .font(.footnote)
+                            .foregroundStyle(.white.opacity(0.68))
+                    } else {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Extracted SPA Rows")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+
+                            ForEach(entries) { entry in
+                                SPAEntryReviewRow(
+                                    entry: entry,
+                                    matchedMemberName: viewModel.memberName(for: entry.matchedMemberID),
+                                    isSelected: selectedEntryIDs.contains(entry.id)
+                                ) {
+                                    toggleSelection(for: entry.id)
+                                }
+                            }
+                        }
+                    }
+
+                    if !errorMessage.isEmpty {
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+                }
+                .padding(20)
+            }
+            .background(AccentBackground().ignoresSafeArea())
+            .navigationTitle("Scan SPA")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                    .tint(.white)
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Review Complete") {
+                        dismiss()
+                    }
+                    .disabled(entries.isEmpty || isProcessing)
+                    .tint(.white)
+                }
+            }
+        }
+        .task(id: selectedPhotoItem) {
+            await loadAndExtractSPA()
+        }
+    }
+
+    @MainActor
+    private func loadAndExtractSPA() async {
+        guard let selectedPhotoItem else {
+            return
+        }
+
+        isProcessing = true
+        defer { isProcessing = false }
+
+        do {
+            guard let data = try await selectedPhotoItem.loadTransferable(type: Data.self),
+                  let image = UIImage(data: data) else {
+                errorMessage = "Unable to load the selected SPA image."
+                return
+            }
+
+            selectedImage = image
+            let extractedEntries = try await viewModel.extractSPAEntries(from: image)
+            entries = extractedEntries
+            selectedEntryIDs = Set(extractedEntries.filter(\.isValid).map(\.id))
+            errorMessage = extractedEntries.isEmpty ? "No SPA rows were extracted from this image." : ""
+        } catch {
+            entries = []
+            selectedEntryIDs = []
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func toggleSelection(for id: UUID) {
+        guard let entry = entries.first(where: { $0.id == id }), entry.isValid else {
+            return
+        }
+
+        if selectedEntryIDs.contains(id) {
+            selectedEntryIDs.remove(id)
+        } else {
+            selectedEntryIDs.insert(id)
+        }
+    }
+}
+
+private struct SPAReviewSummary: View {
+    let entries: [SPAEntry]
+    let selectedEntryIDs: Set<UUID>
+
+    var body: some View {
+        HStack(spacing: 12) {
+            StatChip(title: "Rows", value: "\(entries.count)")
+            StatChip(title: "Selected", value: "\(selectedEntryIDs.count)")
+            StatChip(title: "Matched", value: "\(entries.filter { $0.matchStatus == .matched }.count)")
+            StatChip(title: "Issues", value: "\(entries.filter { !$0.validationIssues.isEmpty }.count)")
+        }
+    }
+}
+
+private struct SPAEntryReviewRow: View {
+    let entry: SPAEntry
+    let matchedMemberName: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: selectionIconName)
+                        .font(.title3)
+                        .foregroundStyle(selectionColor)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Text(entry.grade)
+                                .font(.caption.weight(.bold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                                .background(Color.white.opacity(0.12))
+                                .clipShape(Capsule())
+
+                            Text(entry.nom)
+                                .font(.headline)
+                                .foregroundStyle(.white)
+
+                            Spacer()
+
+                            SPAMatchBadge(status: entry.matchStatus)
+                        }
+
+                        LazyVGrid(
+                            columns: [
+                                GridItem(.flexible(minimum: 90), alignment: .leading),
+                                GridItem(.flexible(minimum: 90), alignment: .leading)
+                            ],
+                            alignment: .leading,
+                            spacing: 10
+                        ) {
+                            SPAField(label: "Position", value: entry.position)
+                            SPAField(label: "Matched", value: matchedMemberName.isEmpty ? "None" : matchedMemberName)
+                            SPAField(label: "Début", value: entry.debut)
+                            SPAField(label: "Fin", value: entry.fin)
+                        }
+
+                        SPAField(label: "Observation", value: entry.observation)
+
+                        if !entry.validationIssues.isEmpty {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Validation Issues")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.orange)
+
+                                ForEach(entry.validationIssues, id: \.self) { issue in
+                                    Text(issue)
+                                        .font(.caption)
+                                        .foregroundStyle(.white.opacity(0.74))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(14)
+            .background(Color.white.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var selectionIconName: String {
+        if !entry.isValid {
+            return "exclamationmark.triangle.fill"
+        }
+
+        return isSelected ? "checkmark.circle.fill" : "circle"
+    }
+
+    private var selectionColor: Color {
+        if !entry.isValid {
+            return .orange
+        }
+
+        return isSelected ? .cyan : .white.opacity(0.55)
+    }
+}
+
+private struct SPAField: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.58))
+
+            Text(value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "None" : value)
+                .font(.subheadline)
+                .foregroundStyle(.white)
+        }
+    }
+}
+
+private struct SPAMatchBadge: View {
+    let status: SPAEntry.MatchStatus
+
+    var body: some View {
+        Text(status.title)
+            .font(.caption.weight(.bold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .foregroundStyle(.white)
+            .background(backgroundColor)
+            .clipShape(Capsule())
+    }
+
+    private var backgroundColor: Color {
+        switch status {
+        case .matched:
+            return .green.opacity(0.55)
+        case .unmatched:
+            return .gray.opacity(0.40)
+        case .ambiguous:
+            return .orange.opacity(0.65)
+        case .invalid:
+            return .red.opacity(0.70)
+        }
+    }
+}
+
+private struct StatChip: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(value)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(.white)
+
+            Text(title.uppercased())
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white.opacity(0.68))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.white.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
